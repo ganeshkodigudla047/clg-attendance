@@ -55,17 +55,16 @@ let settings = {
 onAuthStateChanged(auth, async user => {
   if (!user) return (location.href = "login.html");
 
-  // ✅ FIX 1: use UID (not email)
   const userSnap = await getDoc(doc(db, "users", user.uid));
   if (!userSnap.exists()) {
-    alert("User record missing");
+    alert("User data not found");
     await signOut(auth);
     return (location.href = "login.html");
   }
 
   const u = userSnap.data();
 
-  // ✅ FIX 2: block unapproved staff
+  // block unapproved staff
   if (u.role !== "student" && !u.approved) {
     alert("Waiting for admin approval");
     await signOut(auth);
@@ -78,7 +77,7 @@ onAuthStateChanged(auth, async user => {
   pRole.innerText = u.role;
   pPhone.innerText = u.phone || "-";
 
-  // ✅ FIX 3: resolve incharge / hod names using IDs
+  // resolve incharge / hod
   if (u.inchargeId) {
     const incSnap = await getDoc(doc(db, "users", u.inchargeId));
     pIncharge.innerText = incSnap.exists() ? incSnap.data().name : "-";
@@ -127,7 +126,7 @@ function checkGPSBest() {
       pos => {
         const { latitude, longitude, accuracy } = pos.coords;
         if (accuracy > settings.maxAccuracy)
-          return reject("Low GPS accuracy");
+          return reject("accuracy");
 
         const dist = getDistance(
           latitude,
@@ -144,7 +143,7 @@ function checkGPSBest() {
           distance: Math.round(dist)
         });
       },
-      () => reject("GPS permission denied"),
+      () => reject("permission"),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   });
@@ -158,21 +157,41 @@ async function loadStudent(user, u) {
     <a onclick="logout()">Logout</a>`;
   showView("studentAttendanceView");
 
+  markAttendanceBtn.disabled = false;
+
   markAttendanceBtn.onclick = async () => {
     if (settings.locked) return alert("Attendance locked");
 
     const session = allowedSession();
-    if (!session) return alert("Invalid time");
+    if (!session) return alert("Attendance not allowed now");
 
     try {
       const gps = await checkGPSBest();
-      if (!gps.inside) return alert("Outside college");
+      if (!gps.inside) return alert("You are outside college");
+
+      const today = new Date().toLocaleDateString();
+
+      // prevent duplicates
+      const snap = await getDocs(collection(db, "attendance"));
+      let already = false;
+
+      snap.forEach(d => {
+        const a = d.data();
+        if (
+          a.email === u.email &&
+          a.date === today &&
+          a.session === session
+        ) already = true;
+      });
+
+      if (already)
+        return alert("Attendance already marked for this session");
 
       await addDoc(collection(db, "attendance"), {
         name: u.name,
         roll: u.roll,
         email: u.email,
-        date: new Date().toLocaleDateString(),
+        date: today,
         time: new Date().toLocaleTimeString(),
         session,
         present: true,
@@ -186,16 +205,20 @@ async function loadStudent(user, u) {
         timestamp: new Date()
       });
 
+      alert("Attendance marked successfully");
       location.reload();
+
     } catch (e) {
-      alert(e);
+      if (e === "accuracy") alert("Low GPS accuracy. Go outside.");
+      else if (e === "permission") alert("Enable GPS permission");
+      else alert("Unable to mark attendance");
     }
   };
 
+  // load attendance table
   const snap = await getDocs(collection(db, "attendance"));
   studentAttendanceTable.innerHTML = "";
-  let total = 0,
-    present = 0;
+  let total = 0, present = 0;
 
   snap.forEach(d => {
     const a = d.data();
@@ -205,7 +228,7 @@ async function loadStudent(user, u) {
       studentAttendanceTable.innerHTML += `
         <tr>
           <td>${a.date}</td>
-          <td>${a.time}</td>
+          <td>${a.time || "-"}</td>
           <td>${a.session}</td>
           <td>${a.present ? "✔" : "✖"}</td>
           <td>${a.gpsStatus ? "✔" : "✖"}</td>
@@ -232,7 +255,6 @@ async function loadIncharge(user) {
 
   users.forEach(d => {
     const s = d.data();
-    // ✅ FIX: compare using inchargeId + uid
     if (s.role === "student" && s.inchargeId === user.uid) {
       inchargeStudentTable.innerHTML += `
         <tr>
@@ -291,7 +313,7 @@ async function loadAdmin() {
         <td>${a.name}</td>
         <td>${a.roll}</td>
         <td>${a.date}</td>
-        <td>${a.time}</td>
+        <td>${a.time || "-"}</td>
         <td>${a.session}</td>
         <td>${a.gpsStatus ? "✔" : "✖"}</td>
         <td>${a.accuracy || "-"}</td>
