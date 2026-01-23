@@ -1,22 +1,24 @@
-/* ================= admin ================= */
 * {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
   font-family: Arial, sans-serif;
 }
 
-body {
-  margin: 0;
-}
-
 /* HEADER */
 .header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 55px;
   background: #222;
-  color: white;
+  color: #fff;
   display: flex;
   align-items: center;
   gap: 15px;
   padding: 0 15px;
+  z-index: 1000;
 }
 
 .menu-btn {
@@ -33,46 +35,77 @@ body {
   top: 55px;
   left: 0;
   width: 220px;
-  height: 100%;
+  height: calc(100vh - 55px);
   background: #333;
   display: none;
+  flex-direction: column;
+  z-index: 999;
 }
 
 .sidebar a {
-  display: block;
-  padding: 12px;
   color: white;
-  cursor: pointer;
+  padding: 12px 15px;
   text-decoration: none;
+  cursor: pointer;
+  border-bottom: 1px solid #444;
 }
 
 .sidebar a:hover {
   background: #444;
 }
 
-/* CONTENT */
+/* MAIN CONTENT */
 .content {
+  margin-top: 55px;
   padding: 20px;
 }
 
-.section.hidden {
+/* SECTIONS */
+.section {
+  display: block;
+}
+
+.hidden {
   display: none;
 }
 
-/* TABLE */
+/* TABLE FIX */
 table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 10px;
+  background: #fff;
+}
+
+th {
+  background: #f0f0f0;
+  text-align: left;
 }
 
 th, td {
   border: 1px solid #ccc;
   padding: 8px;
+  font-size: 14px;
+}
+
+/* TOP CONTROLS (ATTENDANCE) */
+input, select, button {
+  margin-right: 5px;
+  padding: 6px;
+  font-size: 14px;
 }
 
 button {
   cursor: pointer;
 }
 
-/* ================= admin close ================= */
+/* MOBILE SAFETY */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 180px;
+  }
+
+  table {
+    font-size: 12px;
+  }
+}
