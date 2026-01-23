@@ -1,20 +1,15 @@
 import { auth, db } from "./firebase.js";
-import {
-  createUserWithEmailAndPassword
-} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
-import {
-  collection,
-  getDocs,
-  setDoc,
-  doc
-} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+import { createUserWithEmailAndPassword } 
+  from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+import { collection, getDocs, setDoc, doc } 
+  from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
-/* ================= DOM ELEMENTS ================= */
-const nameInput = document.getElementById("name");
-const emailInput = document.getElementById("email");
-const passwordInput = document.getElementById("password");
-const phoneInput = document.getElementById("phone");
-const rollInput = document.getElementById("roll");
+/* ========= DOM ========= */
+const nameEl = document.getElementById("name");
+const emailEl = document.getElementById("email");
+const passwordEl = document.getElementById("password");
+const phoneEl = document.getElementById("phone");
+const rollEl = document.getElementById("roll");
 
 const inchargeSelect = document.getElementById("inchargeSelect");
 const hodSelect = document.getElementById("hodSelect");
@@ -25,24 +20,24 @@ const inchargeFields = document.getElementById("inchargeFields");
 const phoneBox = document.getElementById("phoneBox");
 
 const registerBtn = document.getElementById("registerBtn");
-const status = document.getElementById("status");
-const loading = document.getElementById("loading");
+const statusEl = document.getElementById("status");
+const loadingEl = document.getElementById("loading");
 const roleLabel = document.getElementById("roleLabel");
 
-/* ================= ROLE ================= */
+/* ========= ROLE ========= */
 const role = localStorage.getItem("loginRole");
 if (!role) {
-  alert("Please select role first");
+  alert("Select role first");
   location.href = "index.html";
 }
 roleLabel.innerText = role.toUpperCase();
 
-/* ================= INITIAL UI ================= */
+/* ========= UI RESET ========= */
 studentFields.style.display = "none";
 inchargeFields.style.display = "none";
 phoneBox.style.display = "none";
 
-/* ================= ROLE-BASED UI ================= */
+/* ========= ROLE UI ========= */
 if (role === "student") {
   phoneBox.style.display = "block";
   studentFields.style.display = "block";
@@ -54,72 +49,55 @@ else if (role === "incharge") {
 else if (role === "hod") {
   phoneBox.style.display = "block";
 }
-else if (role === "principal") {
-  // phone NOT required
-}
-else if (role === "admin") {
-  // phone NOT required
-}
 
-/* ================= LOAD USERS ================= */
+/* ========= LOAD USERS ========= */
 async function loadUsers() {
   const snap = await getDocs(collection(db, "users"));
   snap.forEach(d => {
     const u = d.data();
-
-    if (u.role === "incharge" && u.approved && inchargeSelect) {
+    if (u.role === "incharge" && u.approved && inchargeSelect)
       inchargeSelect.innerHTML += `<option value="${d.id}">${u.name}</option>`;
-    }
-
     if (u.role === "hod" && u.approved) {
-      if (hodSelect)
-        hodSelect.innerHTML += `<option value="${d.id}">${u.name}</option>`;
-      if (hodForIncharge)
-        hodForIncharge.innerHTML += `<option value="${d.id}">${u.name}</option>`;
+      if (hodSelect) hodSelect.innerHTML += `<option value="${d.id}">${u.name}</option>`;
+      if (hodForIncharge) hodForIncharge.innerHTML += `<option value="${d.id}">${u.name}</option>`;
     }
   });
 }
+if (role === "student" || role === "incharge") loadUsers();
 
-if (role === "student" || role === "incharge") {
-  loadUsers();
-}
-
-/* ================= HELPERS ================= */
+/* ========= HELPERS ========= */
 function showError(msg) {
-  status.innerText = msg;
-  status.style.color = "red";
+  statusEl.innerText = msg;
+  statusEl.style.color = "red";
 }
-
 function showLoading(msg = "Creating account...") {
-  loading.innerText = msg;
-  loading.style.display = "block";
+  loadingEl.innerText = msg;
+  loadingEl.style.display = "block";
 }
-
 function hideLoading() {
-  loading.style.display = "none";
+  loadingEl.style.display = "none";
 }
 
-/* ================= REGISTER ================= */
+/* ========= REGISTER ========= */
 registerBtn.onclick = async () => {
-  status.innerText = "";
+  statusEl.innerText = "";
 
-  const nameVal = nameInput.value.trim();
-  const emailVal = emailInput.value.trim();
-  const passVal = passwordInput.value;
-  const phoneVal = phoneInput ? phoneInput.value.trim() : "";
+  const name = nameEl.value.trim();
+  const email = emailEl.value.trim();
+  const pass = passwordEl.value;
+  const phone = phoneEl ? phoneEl.value.trim() : "";
 
-  if (!nameVal || !emailVal || !passVal) {
+  if (!name || !email || !pass) {
     showError("Name, email and password are required");
     return;
   }
 
-  // PHONE VALIDATION (except admin & principal)
   if (
     role !== "admin" &&
     role !== "principal" &&
-    (!phoneVal || phoneVal.length < 10)
+    (!phone || phone.length < 10)
   ) {
-    showError("Valid phone number is required");
+    showError("Valid phone number required");
     return;
   }
 
@@ -127,77 +105,56 @@ registerBtn.onclick = async () => {
   registerBtn.disabled = true;
 
   try {
-    const cred = await createUserWithEmailAndPassword(
-      auth,
-      emailVal,
-      passVal
-    );
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
 
-    const baseUser = {
+    const base = {
       uid: cred.user.uid,
-      name: nameVal,
-      email: emailVal,
+      name,
+      email,
       role,
       createdAt: new Date()
     };
 
-    /* ========= ROLE LOGIC ========= */
-
-    // STUDENT
     if (role === "student") {
-      if (
-        !rollInput.value ||
-        !inchargeSelect.value ||
-        !hodSelect.value
-      ) {
-        throw new Error("Student fields are missing");
-      }
+      if (!rollEl.value || !inchargeSelect.value || !hodSelect.value)
+        throw new Error("Student details missing");
 
       await setDoc(doc(db, "users", cred.user.uid), {
-        ...baseUser,
-        phone: phoneVal,
-        roll: rollInput.value.trim(),
+        ...base,
+        phone,
+        roll: rollEl.value,
         inchargeId: inchargeSelect.value,
         hodId: hodSelect.value,
         approved: true
       });
     }
-
-    // INCHARGE (under HOD)
     else if (role === "incharge") {
-      if (!hodForIncharge.value) {
-        throw new Error("Please select supervising HOD");
-      }
+      if (!hodForIncharge.value)
+        throw new Error("Select supervising HOD");
 
       await setDoc(doc(db, "users", cred.user.uid), {
-        ...baseUser,
-        phone: phoneVal,
+        ...base,
+        phone,
         hodId: hodForIncharge.value,
         approved: false
       });
     }
-
-    // HOD
     else if (role === "hod") {
       await setDoc(doc(db, "users", cred.user.uid), {
-        ...baseUser,
-        phone: phoneVal,
+        ...base,
+        phone,
         approved: false
       });
     }
-
-    // PRINCIPAL
     else if (role === "principal") {
       await setDoc(doc(db, "users", cred.user.uid), {
-        ...baseUser,
+        ...base,
         approved: false
       });
     }
-
-    // ADMIN
     else if (role === "admin") {
       await setDoc(doc(db, "users", cred.user.uid), {
-        ...baseUser,
+        ...base,
         approved: true
       });
     }
@@ -206,7 +163,7 @@ registerBtn.onclick = async () => {
     location.href = "login.html";
 
   } catch (e) {
-    showError(e.message || "Registration failed");
+    showError(e.message);
     registerBtn.disabled = false;
     hideLoading();
   }
