@@ -8,12 +8,10 @@ import { getFirestore } from
 const firebaseConfig = {
   apiKey: "AIzaSyAFUziq6QGKCwujtiTL-4Rk823FE12ZDGU",
   authDomain: "markattnedance.firebaseapp.com",
-  projectId: "markattnedance",
-  storageBucket: "markattnedance.appspot.com",
-  messagingSenderId: "567833614914",
-  appId: "1:567833614914:web:2599bccb0f14e228ccebdb"
+  projectId: "markattnedance"
 };
 
 const app = initializeApp(firebaseConfig);
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
