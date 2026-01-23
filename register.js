@@ -30,20 +30,17 @@ if (role === "student") {
   staffNote.style.display = "block";
 }
 
-/* ================= LOAD STAFF FOR STUDENT ================= */
+/* ================= LOAD STAFF ================= */
 async function loadStaff() {
   const snap = await getDocs(collection(db, "users"));
   snap.forEach(d => {
     const u = d.data();
-    if (u.role === "incharge" && u.approved) {
+    if (u.role === "incharge" && u.approved)
       inchargeSelect.innerHTML += `<option value="${d.id}">${u.name}</option>`;
-    }
-    if (u.role === "hod" && u.approved) {
+    if (u.role === "hod" && u.approved)
       hodSelect.innerHTML += `<option value="${d.id}">${u.name}</option>`;
-    }
   });
 }
-
 if (role === "student") loadStaff();
 
 /* ================= HELPERS ================= */
@@ -68,9 +65,10 @@ registerBtn.onclick = async () => {
   const nameVal = name.value.trim();
   const emailVal = email.value.trim();
   const passVal = password.value;
+  const phoneVal = phone?.value?.trim() || "";
 
   if (!nameVal || !emailVal || !passVal) {
-    showError("All fields are required");
+    showError("Name, email and password are required");
     return;
   }
 
@@ -78,6 +76,7 @@ registerBtn.onclick = async () => {
   registerBtn.disabled = true;
 
   try {
+    // 🔐 Create Auth User
     const cred = await createUserWithEmailAndPassword(
       auth,
       emailVal,
@@ -92,9 +91,10 @@ registerBtn.onclick = async () => {
       createdAt: new Date()
     };
 
+    // 🎓 STUDENT
     if (role === "student") {
       if (!roll.value || !inchargeSelect.value || !hodSelect.value) {
-        throw { message: "Fill all student fields" };
+        throw new Error("Fill all student fields");
       }
 
       await setDoc(doc(db, "users", cred.user.uid), {
@@ -105,15 +105,26 @@ registerBtn.onclick = async () => {
         approved: true
       });
 
-    } else {
-      if (!phone.value.trim()) {
-        throw { message: "Phone number required" };
+    }
+    // 👑 ADMIN (NO BLOCKING)
+    else if (role === "admin") {
+      await setDoc(doc(db, "users", cred.user.uid), {
+        ...base,
+        phone: phoneVal,
+        approved: true
+      });
+
+    }
+    // 🧑‍🏫 INCHARGE / HOD / PRINCIPAL
+    else {
+      if (!phoneVal) {
+        throw new Error("Phone number required");
       }
 
       await setDoc(doc(db, "users", cred.user.uid), {
         ...base,
-        phone: phone.value.trim(),
-        approved: role === "admin" ? true : false
+        phone: phoneVal,
+        approved: false
       });
     }
 
