@@ -19,16 +19,18 @@ if (!role) {
 
 roleLabel.innerText = role.toUpperCase();
 
-/* ================= FIELD TOGGLE ================= */
+/* ================= ROLE-BASED UI ================= */
 if (role === "student") {
   studentFields.style.display = "block";
   staffFields.style.display = "none";
+  staffNote.style.display = "none";
 } else {
   studentFields.style.display = "none";
   staffFields.style.display = "block";
+  staffNote.style.display = "block";
 }
 
-/* ================= LOAD STAFF ================= */
+/* ================= LOAD STAFF FOR STUDENT ================= */
 async function loadStaff() {
   const snap = await getDocs(collection(db, "users"));
   snap.forEach(d => {
@@ -41,6 +43,7 @@ async function loadStaff() {
     }
   });
 }
+
 if (role === "student") loadStaff();
 
 /* ================= HELPERS ================= */
