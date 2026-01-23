@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Register</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+  <h2>Register</h2>
+
+  <select id="role">
+    <option value="student">Student</option>
+    <option value="incharge">Incharge</option>
+    <option value="hod">HOD</option>
+  </select>
+
+  <input id="name" placeholder="Full Name">
+  <input id="email" type="email" placeholder="Email">
+  <input id="password" type="password" placeholder="Password">
+
+  <div id="studentFields">
+    <input id="roll" placeholder="Roll Number">
+    <select id="inchargeSelect"><option value="">Select Incharge</option></select>
+    <select id="hodSelect"><option value="">Select HOD</option></select>
+  </div>
+
+  <div id="staffFields" style="display:none">
+    <input id="phone" placeholder="Phone Number">
+    <small>* Admin approval required</small>
+  </div>
+
+  <button id="registerBtn">Register</button>
+  <p id="status"></p>
+</div>
+
+<div id="loading">Creating account...</div>
+<div id="networkStatus"></div>
+
+<script type="module" src="register.js"></script>
+<script>
+  const net=document.getElementById("networkStatus");
+  function netUpdate(){
+    net.textContent=navigator.onLine?"Online":"Offline";
+    net.className=navigator.onLine?"online":"offline";
+    net.style.display="block";
+  }
+  addEventListener("online",netUpdate);
+  addEventListener("offline",netUpdate);
+  netUpdate();
+  function showLoading(msg){loading.textContent=msg;loading.style.display="block"}
+  function hideLoading(){loading.style.display="none"}
+</script>
+</body>
+</html>
