@@ -3,14 +3,22 @@ import {
   getAuth,
   signInWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
-/* ================= FIREBASE ================= */
-const app = initializeApp({
+/* ================= FIREBASE CONFIG ================= */
+const firebaseConfig = {
   apiKey: "AIzaSyAFUziq6QGKCwujtiTL-4Rk823FE12ZDGU",
   authDomain: "markattnedance.firebaseapp.com",
   projectId: "markattnedance"
-});
+};
+
+const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 
 /* ================= DOM ================= */
 const emailInput = document.getElementById("email");
@@ -50,10 +58,38 @@ loginBtn.onclick = async () => {
   showLoading();
 
   try {
-    await signInWithEmailAndPassword(auth, email, password);
+    /* 🔐 AUTHENTICATE USER */
+    const cred = await signInWithEmailAndPassword(auth, email, password);
 
-    // ✅ SIMPLE SUCCESS REDIRECT
-    window.location.href = "dashboard.html";
+    /* 🔍 FETCH USER PROFILE */
+    const snap = await getDoc(doc(db, "users", cred.user.uid));
+
+    if (!snap.exists()) {
+      throw new Error("User profile not found");
+    }
+
+    const user = snap.data();
+    const role = user.role;
+
+    /* 🚦 ROLE → DASHBOARD REDIRECT */
+    switch (role) {
+      case "student":
+        window.location.href = "student-dashboard.html";
+        break;
+
+      case "incharge":
+      case "hod":
+        window.location.href = "staff-dashboard.html";
+        break;
+
+      case "admin":
+      case "principal":
+        window.location.href = "admin-dashboard.html";
+        break;
+
+      default:
+        throw new Error("Invalid user role");
+    }
 
   } catch (err) {
     loginBtn.disabled = false;
@@ -63,12 +99,19 @@ loginBtn.onclick = async () => {
       case "auth/user-not-found":
         showError("User not found. Please register.");
         break;
+
       case "auth/wrong-password":
         showError("Wrong password.");
         break;
+
       case "auth/invalid-email":
         showError("Invalid email format.");
         break;
+
+      case "auth/network-request-failed":
+        showError("Network error. Check your internet.");
+        break;
+
       default:
         showError(err.message);
     }

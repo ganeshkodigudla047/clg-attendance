@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Staff Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="header">
+  <button id="menuBtn">☰</button>
+  <span>Staff Dashboard</span>
+</header>
+
+<div class="layout">
+
+  <nav id="sidebar" class="sidebar">
+    <div data-sec="home">Home</div>
+    <div data-sec="profile">Profile</div>
+
+    <!-- HOD ONLY -->
+    <div id="inchargeMenu" class="hod-only" data-sec="incharges">
+      Incharge List
+    </div>
+
+    <div data-sec="students">Student List</div>
+    <div data-sec="attendance">Attendance</div>
+    <div data-sec="approvals">Approvals</div>
+
+    <!-- INCHARGE ONLY -->
+    <div id="permMenu" data-sec="permission">Permission Request</div>
+
+    <div id="logout">Logout</div>
+  </nav>
+
+  <main class="content">
+
+    <!-- HOME -->
+    <section id="home" class="section">
+      <h2 id="welcome" class="center"></h2>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="profile" class="section hidden">
+      <div class="profile-card">
+        <img src="profile.png" class="profile-img">
+        <h3 id="pName"></h3>
+        <p><b>ID:</b> <span id="pId"></span></p>
+        <p><b>Phone:</b> <span id="pPhone"></span></p>
+        <p><b>Department:</b> <span id="pDept"></span></p>
+        <p><b>HOD:</b> <span id="pHod"></span></p>
+        <p><b>Email:</b> <span id="pEmail"></span></p>
+      </div>
+    </section>
+
+    <!-- INCHARGE LIST -->
+    <section id="incharges" class="section hidden">
+      <h3>Incharge List</h3>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Action</th></tr>
+        </thead>
+        <tbody id="inchargeTable"></tbody>
+      </table>
+    </section>
+
+    <!-- STUDENTS -->
+    <section id="students" class="section hidden">
+      <h3 id="studentTitle">Students</h3>
+      <select id="yearFilter">
+        <option value="all">All Years</option>
+        <option value="1">1st</option>
+        <option value="2">2nd</option>
+        <option value="3">3rd</option>
+        <option value="4">4th</option>
+      </select>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th><th>Roll</th><th>Year</th><th>Status</th><th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="studentTable"></tbody>
+      </table>
+    </section>
+
+    <!-- ATTENDANCE -->
+    <section id="attendance" class="section hidden">
+      <h3>Attendance</h3>
+
+      <div class="controls">
+        <select id="attType">
+          <option value="today">Today Attendance</option>
+          <option value="records">Attendance Records</option>
+        </select>
+
+        <input id="searchAtt" placeholder="Search name / roll">
+
+        <select id="sortAtt">
+          <option value="date">Sort by Date</option>
+          <option value="name">Sort by Name</option>
+          <option value="status">Sort by Status</option>
+        </select>
+
+        <select id="attYear">
+          <option value="all">All Years</option>
+          <option value="1">1st</option>
+          <option value="2">2nd</option>
+          <option value="3">3rd</option>
+          <option value="4">4th</option>
+        </select>
+
+        <button id="downloadAtt">Download CSV</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Name</th><th>Roll</th>
+            <th>Year</th><th>Session</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="attTable"></tbody>
+      </table>
+    </section>
+
+    <!-- APPROVALS -->
+    <section id="approvals" class="section hidden">
+      <p id="noPermMsg" class="error"></p>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Roll</th><th>Action</th></tr>
+        </thead>
+        <tbody id="approveTable"></tbody>
+      </table>
+    </section>
+
+    <!-- PERMISSION -->
+    <section id="permission" class="section hidden">
+      <div class="perm-card">
+        <h3>Request Approval Permission</h3>
+        <button id="requestPerm">Request Permission</button>
+        <p id="reqStatus"></p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast-container"></div>
+
+<script type="module" src="staff-dashboard.js"></script>
+
+
+</body>
+</html>
