@@ -3,25 +3,25 @@ import {
   createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
 import {
+  collection,
+  getDocs,
   doc,
   setDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
-/* ================= DOM READY ================= */
 document.addEventListener("DOMContentLoaded", () => {
 
   /* ================= ROLE ================= */
   const role = localStorage.getItem("userRole");
   if (!role) {
-    alert("Role missing. Start from index page.");
     window.location.href = "index.html";
     return;
   }
 
   /* ================= HEADER ================= */
-  const who = document.getElementById("who");
-  who.innerText = "Registering as: " + role.toUpperCase();
+  document.getElementById("who").innerText =
+    `Registering as: ${role.toUpperCase()}`;
 
   /* ================= SECTIONS ================= */
   const sections = {
@@ -32,8 +32,8 @@ document.addEventListener("DOMContentLoaded", () => {
     principal: document.getElementById("authority")
   };
 
-  Object.values(sections).forEach(sec => sec.classList.add("hidden"));
-  if (sections[role]) sections[role].classList.remove("hidden");
+  Object.values(sections).forEach(s => s.classList.add("hidden"));
+  sections[role].classList.remove("hidden");
 
   /* ================= COMMON FIELDS ================= */
   const name = document.getElementById("name");
@@ -42,30 +42,76 @@ document.addEventListener("DOMContentLoaded", () => {
   const password = document.getElementById("password");
   const registerBtn = document.getElementById("registerBtn");
 
-  /* ================= ROLE FIELDS ================= */
+  /* ================= STUDENT ================= */
   const studentId = document.getElementById("studentId");
   const studentDept = document.getElementById("studentDept");
   const year = document.getElementById("year");
   const inchargeId = document.getElementById("inchargeId");
 
+  /* ================= INCHARGE ================= */
   const staffIdIncharge = document.getElementById("staffIdIncharge");
   const deptIncharge = document.getElementById("deptIncharge");
   const hodId = document.getElementById("hodId");
 
+  /* ================= HOD ================= */
   const staffIdHod = document.getElementById("staffIdHod");
   const deptHod = document.getElementById("deptHod");
 
+  /* ================= ADMIN / PRINCIPAL ================= */
   const staffIdAuth = document.getElementById("staffIdAuth");
   const invite = document.getElementById("invite");
 
+  /* ======================================================
+     LOAD HODS WHEN INCHARGE SELECTS DEPARTMENT
+     ====================================================== */
+  if (deptIncharge) {
+    deptIncharge.onchange = async () => {
+      hodId.innerHTML = `<option value="">Select HOD</option>`;
+      if (!deptIncharge.value) return;
+
+      const snap = await getDocs(collection(db, "users"));
+      snap.forEach(d => {
+        const u = d.data();
+        if (
+          u.role === "hod" &&
+          u.department === deptIncharge.value &&
+          u.approved === true
+        ) {
+          hodId.innerHTML +=
+            `<option value="${d.id}">${u.name}</option>`;
+        }
+      });
+    };
+  }
+
+  /* ======================================================
+     LOAD INCHARGES WHEN STUDENT SELECTS DEPARTMENT
+     ====================================================== */
+  if (studentDept) {
+    studentDept.onchange = async () => {
+      inchargeId.innerHTML = `<option value="">Select Incharge</option>`;
+      if (!studentDept.value) return;
+
+      const snap = await getDocs(collection(db, "users"));
+      snap.forEach(d => {
+        const u = d.data();
+        if (
+          u.role === "incharge" &&
+          u.department === studentDept.value &&
+          u.approved === true
+        ) {
+          inchargeId.innerHTML +=
+            `<option value="${d.id}">${u.name}</option>`;
+        }
+      });
+    };
+  }
+
   /* ================= REGISTER ================= */
-  registerBtn.addEventListener("click", async () => {
+  registerBtn.onclick = async () => {
     try {
-      /* -------- COMMON VALIDATION -------- */
-      if (!name.value || !email.value || !phone.value || !password.value) {
-        alert("Fill all common fields");
+      if (!name.value || !email.value || !phone.value || !password.value)
         return;
-      }
 
       let userData = {
         name: name.value.trim(),
@@ -79,10 +125,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       /* -------- STUDENT -------- */
       if (role === "student") {
-        if (!studentId.value || !studentDept.value || !year.value) {
-          alert("Fill all student fields");
+        if (!studentId.value || !studentDept.value || !year.value)
           return;
-        }
 
         userData.studentId = studentId.value.trim();
         userData.department = studentDept.value;
@@ -92,10 +136,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       /* -------- INCHARGE -------- */
       if (role === "incharge") {
-        if (!staffIdIncharge.value || !deptIncharge.value) {
-          alert("Fill all incharge fields");
+        if (!staffIdIncharge.value || !deptIncharge.value)
           return;
-        }
 
         userData.staffId = staffIdIncharge.value.trim();
         userData.department = deptIncharge.value;
@@ -104,10 +146,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       /* -------- HOD -------- */
       if (role === "hod") {
-        if (!staffIdHod.value || !deptHod.value) {
-          alert("Fill all HOD fields");
+        if (!staffIdHod.value || !deptHod.value)
           return;
-        }
 
         userData.staffId = staffIdHod.value.trim();
         userData.department = deptHod.value;
@@ -115,49 +155,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
       /* -------- ADMIN / PRINCIPAL -------- */
       if (role === "admin" || role === "principal") {
-        if (!staffIdAuth.value || invite.value !== "COLLEGE-2025") {
-          alert("Invalid admin / principal details");
+        if (!staffIdAuth.value || invite.value !== "COLLEGE-2025")
           return;
-        }
 
         userData.staffId = staffIdAuth.value.trim();
       }
 
-      /* -------- FIREBASE AUTH -------- */
+      /* -------- AUTH -------- */
       const cred = await createUserWithEmailAndPassword(
         auth,
         email.value,
         password.value
       );
 
-      /* -------- FIRESTORE SAVE -------- */
+      /* -------- FIRESTORE -------- */
       await setDoc(doc(db, "users", cred.user.uid), {
         uid: cred.user.uid,
         ...userData
       });
 
-      alert("Registered successfully. Waiting for admin approval.");
       localStorage.removeItem("userRole");
       window.location.href = "login.html";
 
     } catch (err) {
-      alert(err.message);
+      console.error(err);
     }
-  });
+  };
 
 });
-
-
-
-function showToast(msg, type = "info") {
-  const t = document.createElement("div");
-  t.className = `toast ${type}`;
-  t.innerText = msg;
-  document.body.appendChild(t);
-
-  setTimeout(() => t.classList.add("show"), 50);
-  setTimeout(() => {
-    t.classList.remove("show");
-    setTimeout(() => t.remove(), 300);
-  }, 3000);
-}

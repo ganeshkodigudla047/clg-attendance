@@ -2,189 +2,269 @@ import { auth, db } from "./firebase.js";
 import { onAuthStateChanged, signOut }
 from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
 import {
-  collection, getDocs, getDoc, doc, updateDoc, setDoc
+  collection, getDocs, getDoc, doc, setDoc, updateDoc
 } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
-/* MENU */
-menuBtn.onclick = () => sidebar.classList.toggle("hidden");
-logout.onclick = () => signOut(auth).then(()=>location.href="login.html");
+/* ========= TOAST ========= */
+function toast(msg){
+  const t=document.createElement("div");
+  t.className="toast";
+  t.innerText=msg;
+  document.getElementById("toast-container").appendChild(t);
+  setTimeout(()=>t.remove(),3000);
+}
 
-document.querySelectorAll("[data-sec]").forEach(d =>
-  d.onclick = () => show(d.dataset.sec)
-);
+/* ========= GLOBAL ========= */
+let me=null;
+let approved=[], pending=[], attendance=[];
+let canApprove=false;
+
+/* ========= MENU ========= */
+menuBtn.onclick=()=>sidebar.classList.toggle("hidden");
+logout.onclick=()=>logoutConfirm.classList.remove("hidden");
+cancelLogout.onclick=()=>logoutConfirm.classList.add("hidden");
+confirmLogout.onclick=()=>signOut(auth).then(()=>location.href="login.html");
+
+document.querySelectorAll("[data-sec]").forEach(d=>{
+  d.onclick=()=>show(d.dataset.sec);
+});
 
 function show(id){
-  if(me.role==="incharge" && id==="incharges") return;
   document.querySelectorAll(".section").forEach(s=>s.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
   sidebar.classList.add("hidden");
 
+  if(id==="approval"){ checkPermission(); loadPending(); }
   if(id==="students") loadStudents();
   if(id==="attendance") loadAttendance();
-  if(id==="approvals") loadApprovals();
 }
 
-/* AUTH */
-let me=null, selectedIncharge=null, attendanceRecords=[];
-
-onAuthStateChanged(auth, async user=>{
-  if(!user) return location.href="login.html";
-
-  const snap = await getDoc(doc(db,"users",user.uid));
-  if(!snap.exists()) return location.href="login.html";
-
-  me = snap.data();
-  welcome.innerText = `Welcome, ${me.name}`;
-
-  if(me.role==="hod") inchargeMenu.style.display="block";
-  if(me.role==="incharge") permMenu.style.display="block";
-
-  pName.innerText = me.name;
-  pId.innerText = me.staffId || "-";
-  pPhone.innerText = me.phone || "-";
-  pDept.innerText = me.department || "-";
-  pHod.innerText = me.hodName || "-";
-  pEmail.innerText = me.email || "-";
-
-  if(me.role==="hod") loadIncharges();
-});
-
-/* INCHARGES */
-async function loadIncharges(){
-  inchargeTable.innerHTML="";
-  const snap = await getDocs(collection(db,"users"));
-  snap.forEach(d=>{
-    const u=d.data();
-    if(u.role==="incharge"){
-      inchargeTable.innerHTML+=`
-        <tr>
-          <td>${u.name}</td>
-          <td>${u.email}</td>
-          <td><button onclick="selectIncharge('${d.id}','${u.name}')">View</button></td>
-        </tr>`;
-    }
-  });
-}
-
-window.selectIncharge=(id,name)=>{
-  selectedIncharge=id;
-  studentTitle.innerText=`Students under ${name}`;
-  show("students");
+/* ========= BACK GUARD ========= */
+history.pushState(null,"",location.href);
+window.onpopstate=()=>{
+  logoutConfirm.classList.remove("hidden");
+  history.pushState(null,"",location.href);
 };
 
-/* STUDENTS */
+/* ========= AUTH ========= */
+onAuthStateChanged(auth, async user=>{
+  if(!user) location.href="login.html";
+  const snap=await getDoc(doc(db,"users",user.uid));
+  if(!snap.exists()) location.href="login.html";
+
+  me=snap.data();
+  welcome.innerText=`Welcome, ${me.name}`;
+  pName.innerText=me.name;
+  pEmail.innerText=me.email;
+  pPhone.innerText=me.phone||"-";
+  pDept.innerText=me.department||"-";
+  pRole.innerText=me.role;
+});
+
+/* ========= PERMISSION ========= */
+async function checkPermission(){
+  canApprove=false;
+  requestPerm.disabled=false;
+
+  const snap=await getDoc(doc(db,"permissionRequests",auth.currentUser.uid));
+  if(!snap.exists()){
+    permStatus.innerText="Admin permission required";
+    return;
+  }
+
+  const d=snap.data();
+  if(d.status==="pending"){
+    permStatus.innerText="Waiting for admin approval";
+    requestPerm.disabled=true;
+    return;
+  }
+
+  if(d.expiresAt && Date.now()<d.expiresAt.toMillis()){
+    canApprove=true;
+    permStatus.innerText="Permission active";
+    requestPerm.style.display="none";
+  }else{
+    permStatus.innerText="Permission expired";
+  }
+}
+
+requestPerm.onclick=async()=>{
+  await setDoc(doc(db,"permissionRequests",auth.currentUser.uid),{
+    role:"incharge",
+    status:"pending",
+    requestedAt:new Date()
+  });
+  toast("Permission request sent");
+  requestPerm.disabled=true;
+};
+
+/* ========= PENDING ========= */
+async function loadPending(){
+  pending=[];
+  pendingTable.innerHTML="";
+  const snap=await getDocs(collection(db,"users"));
+  snap.forEach(d=>{
+    const u=d.data();
+    if(u.role==="student" && !u.approved && u.inchargeId===auth.currentUser.uid){
+      pending.push({uid:d.id,...u});
+    }
+  });
+  renderPending();
+}
+
+function renderPending(){
+  pendingTable.innerHTML="";
+  let q=searchPending.value.toLowerCase();
+  pending
+    .filter(s=>s.name.toLowerCase().includes(q)||s.studentId.toLowerCase().includes(q))
+    .forEach(s=>{
+      pendingTable.innerHTML+=`
+        <tr>
+          <td>${s.name}</td>
+          <td>${s.studentId}</td>
+          <td>${s.year}</td>
+          <td>${canApprove?`<button data-id="${s.uid}">Approve</button>`:"Permission required"}</td>
+        </tr>`;
+    });
+}
+
+searchPending.onkeyup=renderPending;
+
+pendingTable.onclick=async(e)=>{
+  if(e.target.tagName!=="BUTTON") return;
+  if(!canApprove){ toast("Permission required"); return; }
+  await updateDoc(doc(db,"users",e.target.dataset.id),{approved:true});
+  toast("Student approved");
+  loadPending();
+};
+
+/* ========= STUDENTS ========= */
 async function loadStudents(){
+  approved=[];
   studentTable.innerHTML="";
   const snap=await getDocs(collection(db,"users"));
   snap.forEach(d=>{
     const u=d.data();
-    if(u.role!=="student") return;
-    if(me.role==="incharge" && u.inchargeId!==auth.currentUser.uid) return;
-    if(me.role==="hod" && u.inchargeId!==selectedIncharge) return;
-
-    studentTable.innerHTML+=`
-      <tr>
-        <td>${u.name}</td>
-        <td>${u.roll}</td>
-        <td>${u.year}</td>
-        <td>${u.approved?"Approved":"Pending"}</td>
-        <td>${me.canApproveStudents && !u.approved ?
-          `<button onclick="approve('${d.id}')">Approve</button>` : "-"}</td>
-      </tr>`;
+    if(u.role==="student" && u.approved && u.inchargeId===auth.currentUser.uid){
+      approved.push({uid:d.id,...u});
+    }
   });
+  renderStudents();
 }
 
-/* ATTENDANCE */
-async function loadAttendance(){
-  attendanceRecords=[];
-  const snap=await getDocs(collection(db,"attendance"));
+function renderStudents(){
+  studentTable.innerHTML="";
+  let q=searchStudent.value.toLowerCase();
+  let y=yearFilter.value;
+
+  approved
+    .filter(s=>(!y||s.year==y)&&(s.name.toLowerCase().includes(q)||s.studentId.toLowerCase().includes(q)))
+    .forEach((s,i)=>{
+      studentTable.innerHTML+=`
+        <tr data-index="${i}">
+          <td class="student-name">${s.name}</td>
+          <td>${s.studentId}</td>
+          <td>${s.year}</td>
+        </tr>`;
+    });
+}
+
+searchStudent.onkeyup=renderStudents;
+yearFilter.onchange=renderStudents;
+
+/* ========= STUDENT POPUP ========= */
+studentTable.onclick=async(e)=>{
+  const row=e.target.closest("tr");
+  if(!row) return;
+  const s=approved[row.dataset.index];
+
+  mName.innerText=s.name;
+  mId.innerText=s.studentId;
+  mEmail.innerText=s.email;
+  mPhone.innerText=s.phone||"-";
+  mDept.innerText=s.department;
+  mYear.innerText=s.year;
+
+  studentAttTable.innerHTML="";
+  let total=0,present=0;
+
+  const snap=await getDocs(collection(db,"attendanceRecords"));
   snap.forEach(d=>{
     const a=d.data();
-    if(me.role==="incharge" && a.inchargeId!==auth.currentUser.uid) return;
-    if(me.role==="hod" && a.inchargeId!==selectedIncharge) return;
-    attendanceRecords.push(a);
+    if(a.studentUid!==s.uid) return;
+    total++; if(a.status==="Present") present++;
+    studentAttTable.innerHTML+=`
+      <tr>
+        <td>${a.date}</td>
+        <td>${a.session}</td>
+        <td>${a.method}</td>
+        <td>${a.gpsVerified?"✔":"✖"}</td>
+        <td>${a.status}</td>
+      </tr>`;
+  });
+
+  mPercent.innerText=total?Math.round(present/total*100)+"%":"0%";
+  studentModal.classList.remove("hidden");
+};
+
+closeModal.onclick=()=>studentModal.classList.add("hidden");
+
+/* ESC */
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){
+    studentModal.classList.add("hidden");
+    logoutConfirm.classList.add("hidden");
+  }
+});
+
+/* ========= ATTENDANCE ========= */
+async function loadAttendance(){
+  attendance=[];
+  const snap=await getDocs(collection(db,"attendanceRecords"));
+  snap.forEach(d=>{
+    const a=d.data();
+    if(a.inchargeId===auth.currentUser.uid) attendance.push(a);
   });
   renderAttendance();
 }
 
 function renderAttendance(){
   attTable.innerHTML="";
-  const today=new Date().toLocaleDateString();
-  let data=[...attendanceRecords];
+  let q=searchAtt.value.toLowerCase();
+  let data=[...attendance];
 
-  if(attType.value==="today"){
-    data=data.filter(r=>r.date===today);
+  if(sortAtt.value==="name"){
+    data.sort((a,b)=>a.studentName.localeCompare(b.studentName));
+  }else{
+    data.sort((a,b)=>new Date(a.date)-new Date(b.date));
   }
 
-  const q=searchAtt.value.toLowerCase();
-  if(q){
-    data=data.filter(r =>
-      (r.studentName||"").toLowerCase().includes(q) ||
-      (r.roll||"").toLowerCase().includes(q)
-    );
-  }
-
-  data.forEach(r=>{
-    attTable.innerHTML+=`
-      <tr>
-        <td>${r.date}</td>
-        <td>${r.studentName}</td>
-        <td>${r.roll}</td>
-        <td>${r.year}</td>
-        <td>${r.session}</td>
-        <td>${r.status}</td>
-      </tr>`;
-  });
+  data
+    .filter(a=>a.studentName.toLowerCase().includes(q)||a.studentId.toLowerCase().includes(q))
+    .forEach(a=>{
+      attTable.innerHTML+=`
+        <tr>
+          <td>${a.studentName}</td>
+          <td>${a.studentId}</td>
+          <td>${a.gpsVerified?"✔":"✖"}</td>
+          <td>${a.method==="facial"?"✔":"✖"}</td>
+          <td>${a.method==="manual"?"✔":"✖"}</td>
+          <td>${a.status}</td>
+        </tr>`;
+    });
 }
 
-attType.onchange=renderAttendance;
 searchAtt.onkeyup=renderAttendance;
 sortAtt.onchange=renderAttendance;
-attYear.onchange=renderAttendance;
 
-/* APPROVALS */
-async function loadApprovals(){
-  approveTable.innerHTML="";
-  if(!me.canApproveStudents){
-    noPermMsg.innerText="Permission not granted";
-    return;
-  }
-  const snap=await getDocs(collection(db,"users"));
-  snap.forEach(d=>{
-    const u=d.data();
-    if(u.role==="student" && !u.approved){
-      approveTable.innerHTML+=`
-        <tr>
-          <td>${u.name}</td>
-          <td>${u.roll}</td>
-          <td><button onclick="approve('${d.id}')">Approve</button></td>
-        </tr>`;
-    }
+/* ========= EXCEL ========= */
+downloadExcel.onclick=()=>{
+  let csv="Name,ID,GPS,Facial,Manual,Status\n";
+  attendance.forEach(a=>{
+    csv+=`${a.studentName},${a.studentId},${a.gpsVerified},${a.method==="facial"},${a.method==="manual"},${a.status}\n`;
   });
-}
-
-window.approve=uid=>updateDoc(doc(db,"users",uid),{approved:true});
-
-/* PERMISSION */
-requestPerm.onclick=async()=>{
-  await setDoc(doc(db,"permissionRequests",auth.currentUser.uid),{
-    status:"pending", date:new Date()
-  });
-  alert("Permission request sent");
-  reqStatus.innerText="Request sent";
+  const link=document.createElement("a");
+  link.href=URL.createObjectURL(new Blob([csv]));
+  link.download="attendance.xlsx";
+  link.click();
 };
-
-
-
-function showToast(msg, type = "info") {
-  const t = document.createElement("div");
-  t.className = `toast ${type}`;
-  t.innerText = msg;
-  document.body.appendChild(t);
-
-  setTimeout(() => t.classList.add("show"), 50);
-  setTimeout(() => {
-    t.classList.remove("show");
-    setTimeout(() => t.remove(), 300);
-  }, 3000);
-}
