@@ -1,274 +1,248 @@
-import { auth, db } from "./firebase.js";
+import { auth, db } from "./firebase.js"
 
 import {
 onAuthStateChanged,
 signOut
-} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"
 
 import {
 doc,
 getDoc,
 collection,
 getDocs,
-addDoc,
-serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
-
-let currentUserData=null;
+addDoc
+} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"
 
 
+const video=document.getElementById("video")
 
-/* AUTH */
+let referenceDescriptor=null
 
-onAuthStateChanged(auth, async user=>{
+let gpsVerified=false
 
-if(!user){
-location="login.html";
-return;
-}
-
-const snap=await getDoc(doc(db,"users",user.uid));
-
-if(!snap.exists()){
-location="login.html";
-return;
-}
-
-currentUserData=snap.data();
-
-headerName.innerText=
-currentUserData.name+" ("+currentUserData.role+")";
-
-profileName.innerText=currentUserData.name;
-
-profileEmail.innerText=currentUserData.email;
-
-profileDept.innerText=currentUserData.department;
-
-profileYear.innerText="Year "+currentUserData.year;
-
-
-loadWish();
-
-loadAttendanceStats();
-
-loadAttendanceRecords();
-
-});
-
-
-
-/* WISH */
-
-function loadWish(){
-
-const h=new Date().getHours();
-
-let text="";
-
-if(h<12) text="Good Morning";
-else if(h<17) text="Good Afternoon";
-else text="Good Evening";
-
-wish.innerText=text+", "+currentUserData.name;
-
-}
-
-
-
-/* MENU */
 
 menuBtn.onclick=()=>{
-sidebar.classList.toggle("hidden");
-};
+sidebar.classList.toggle("hidden")
+}
+
 
 document.querySelectorAll("[data-sec]").forEach(btn=>{
-
 btn.onclick=()=>{
+document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"))
+document.getElementById(btn.dataset.sec).classList.add("active")
+}
+})
 
-document.querySelectorAll(".section")
-.forEach(s=>s.classList.remove("active"));
-
-document.getElementById(btn.dataset.sec)
-.classList.add("active");
-
-};
-
-});
-
-
-
-/* LOGOUT */
 
 logoutBtn.onclick=()=>{
-logoutModal.classList.remove("hidden");
-};
+logoutModal.classList.remove("hidden")
+}
 
 cancelLogout.onclick=()=>{
-logoutModal.classList.add("hidden");
-};
-
-confirmLogout.onclick=()=>{
-signOut(auth);
-location="login.html";
-};
-
-
-
-/* LOAD STATS */
-
-async function loadAttendanceStats(){
-
-let present=0;
-let absent=0;
-
-const snap=await getDocs(collection(db,"attendanceRecords"));
-
-snap.forEach(d=>{
-
-const r=d.data();
-
-if(r.studentId===auth.currentUser.uid){
-
-if(r.status==="present") present++;
-else absent++;
-
+logoutModal.classList.add("hidden")
 }
 
-});
-
-presentCount.innerText=present;
-absentCount.innerText=absent;
-
+confirmLogout.onclick=async()=>{
+await signOut(auth)
+location="login.html"
 }
 
 
+onAuthStateChanged(auth,async user=>{
 
-/* LOAD RECORDS */
-
-async function loadAttendanceRecords(){
-
-recordTable.innerHTML="";
-
-let i=1;
-
-const snap=await getDocs(collection(db,"attendanceRecords"));
-
-snap.forEach(d=>{
-
-const r=d.data();
-
-if(r.studentId===auth.currentUser.uid){
-
-recordTable.innerHTML+=`
-
-<tr>
-
-<td>${i++}</td>
-
-<td>${r.date}</td>
-
-<td>${r.session}</td>
-
-<td>${r.gpsStatus=="ok"?"✔":"✖"}</td>
-
-<td>${r.faceStatus=="ok"?"✔":"✖"}</td>
-
-<td>${r.status}</td>
-
-</tr>
-
-`;
-
+if(!user){
+location="login.html"
+return
 }
 
-});
+const snap=await getDoc(doc(db,"users",user.uid))
+const data=snap.data()
+
+studentName.innerText=data.name+" ("+data.role+")"
+
+profilePic.src=data.photoURL
+
+profileInfo.innerHTML=`
+Name: ${data.name}<br>
+Email: ${data.email}<br>
+Department: ${data.department}<br>
+Year: ${data.year}
+`
+
+setWish()
+
+await loadModels()
+await startCamera()
+await loadReference(data.photoURL)
+
+loadAttendance()
+
+})
+
+
+function setWish(){
+
+const h=new Date().getHours()
+
+if(h<12) wish.innerText="Good Morning"
+else if(h<17) wish.innerText="Good Afternoon"
+else wish.innerText="Good Evening"
 
 }
 
 
+async function loadModels(){
 
-/* MARK ATTENDANCE */
+await faceapi.nets.tinyFaceDetector.loadFromUri("models")
+await faceapi.nets.faceLandmark68Net.loadFromUri("models")
+await faceapi.nets.faceRecognitionNet.loadFromUri("models")
 
-markBtn.onclick=async ()=>{
-
-const session=sessionSelect.value;
-
-if(!session){
-alert("Select session");
-return;
 }
 
-markStatus.innerText="Checking GPS...";
+
+async function startCamera(){
+
+const stream=await navigator.mediaDevices.getUserMedia({video:true})
+video.srcObject=stream
+
+}
+
+
+async function loadReference(photoURL){
+
+const img=await faceapi.fetchImage(photoURL)
+
+const detection=await faceapi
+.detectSingleFace(img,new faceapi.TinyFaceDetectorOptions())
+.withFaceLandmarks()
+.withFaceDescriptor()
+
+referenceDescriptor=detection.descriptor
+
+}
+
+
+startBtn.onclick=()=>{
 
 navigator.geolocation.getCurrentPosition(
 
-async pos=>{
+()=>{
+gpsVerified=true
+gpsStatus.innerHTML="GPS: ✓ verified"
+},
 
-if(pos.coords.accuracy>50){
+()=>{
+gpsVerified=false
+gpsStatus.innerHTML="GPS: ❌ failed"
+}
 
-markStatus.innerText="Fake GPS suspected";
-
-return;
+)
 
 }
 
-markStatus.innerText="GPS OK. Checking Face...";
 
+captureBtn.onclick=async()=>{
 
-const faceOk=Math.random()>0.3;
+if(!gpsVerified){
+alert("GPS not verified")
+return
+}
 
+const detection=await faceapi
+.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions())
+.withFaceLandmarks()
+.withFaceDescriptor()
 
-if(faceOk){
+if(!detection){
+faceStatus.innerHTML="Face: ❌ no face"
+manualBtn.classList.remove("hidden")
+return
+}
+
+const distance=faceapi.euclideanDistance(
+referenceDescriptor,
+detection.descriptor
+)
+
+if(distance<0.5){
+
+faceStatus.innerHTML="Face: ✓ verified"
 
 await addDoc(collection(db,"attendanceRecords"),{
 
 studentId:auth.currentUser.uid,
-
-studentName:currentUserData.name,
-
 date:new Date().toISOString().slice(0,10),
-
-session,
-
-gpsStatus:"ok",
-
-faceStatus:"ok",
-
+session:"FN",
 status:"present",
+method:"face"
 
-createdAt:serverTimestamp()
+})
 
-});
+loadAttendance()
 
-markStatus.innerText="Attendance Marked ✔";
+}else{
 
-loadAttendanceRecords();
-
-}
-else{
-
-markStatus.innerText=
-"Face failed. Manual request sent.";
-
-await addDoc(collection(db,"manualRequests"),{
-
-studentId:auth.currentUser.uid,
-
-status:"pending",
-
-createdAt:serverTimestamp()
-
-});
+faceStatus.innerHTML="Face: ❌ failed"
+manualBtn.classList.remove("hidden")
 
 }
 
-},
-
-err=>{
-markStatus.innerText="GPS required";
 }
 
-);
 
-};
+async function loadAttendance(){
+
+const snap=await getDocs(collection(db,"attendanceRecords"))
+
+let total=0
+let present=0
+
+let today=new Date().toISOString().slice(0,10)
+
+todayFN.innerHTML="○"
+todayAN.innerHTML="○"
+
+recordTable.innerHTML=""
+
+snap.forEach(d=>{
+
+const r=d.data()
+
+if(r.studentId===auth.currentUser.uid){
+
+total++
+
+if(r.status==="present") present++
+
+if(r.date===today){
+
+if(r.session==="FN"){
+todayFN.innerHTML='<span class="green">✓</span>'
+}
+
+if(r.session==="AN"){
+todayAN.innerHTML='<span class="green">✓</span>'
+}
+
+}
+
+recordTable.innerHTML+=`
+<tr>
+<td>${r.date}</td>
+<td>${r.session==="FN"?"✓":"✗"}</td>
+<td>${r.session==="AN"?"✓":"✗"}</td>
+<td>${r.status}</td>
+<td>${r.method}</td>
+</tr>
+`
+
+}
+
+})
+
+totalDays.innerText=total
+presentDays.innerText=present
+absentDays.innerText=total-present
+percent.innerText=Math.round((present/total)*100)||0
+
+}
